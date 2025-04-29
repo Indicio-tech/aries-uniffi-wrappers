@@ -1,7 +1,7 @@
 use crate::uffi::{error::ErrorCode, scan::AskarScan, session::AskarSession};
 use aries_askar::{
     PassKey, Store, StoreKeyMethod,
-    storage::{entry::TagFilter, generate_raw_store_key},
+    storage::{entry::TagFilter, generate_raw_store_key, migration::IndySdkToAriesAskarMigration},
 };
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 macro_rules! STORE_CLOSED_ERROR {
     () => {
         ErrorCode::Unexpected {
-            message: String::from("Store is already closed"),
+            error_message: String::from("Store is already closed"),
         }
     };
 }
@@ -73,6 +73,20 @@ impl AskarStoreManager {
     pub async fn remove(&self, spec_uri: String) -> Result<bool, ErrorCode> {
         let removed = Store::remove(spec_uri.as_str()).await?;
         Ok(removed)
+    }
+
+    pub async fn migrate_indy_wallet(
+        &self,
+        spec_uri: String,
+        wallet_name: String,
+        wallet_key: String,
+        kdf_level: String,
+    ) -> Result<(), ErrorCode> {
+        let migrator = IndySdkToAriesAskarMigration::connect(
+            spec_uri.as_str(), wallet_name.as_str(), wallet_key.as_str(), kdf_level.as_str(),
+        ).await?;
+        migrator.migrate().await?;
+        Ok(())
     }
 }
 
@@ -138,6 +152,8 @@ impl AskarStore {
         Ok(())
     }
 
+    // `close()` is used in Kotlin to destroy Uniffi object so we rename it here
+    #[uniffi::method(name = "close_store")]
     pub async fn close(&self) -> Result<(), ErrorCode> {
         let store = self.store.write().await.take();
         store.ok_or(STORE_CLOSED_ERROR!())?.close().await?;

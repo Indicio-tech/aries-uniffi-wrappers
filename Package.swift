@@ -1,7 +1,8 @@
 // swift-tools-version: 5.7
 import PackageDescription
+import class Foundation.ProcessInfo
 
-let package = Package(
+var package = Package(
     name: "aries-uniffi-wrappers",
     platforms: [
         .macOS(.v10_15),
@@ -23,36 +24,66 @@ let package = Package(
     targets: [
         .target(
             name: "Anoncreds",
-            dependencies: ["anoncreds_uniffiFFI"]),
+            path: "swift/Sources/Anoncreds"),
         .testTarget(
             name: "AnoncredsTests",
-            dependencies: ["Anoncreds"]),
+            dependencies: ["Anoncreds"],
+            path: "swift/Tests/AnoncredsTests"),
         .binaryTarget(
             name: "anoncreds_uniffiFFI",
-            url: "https://github.com/hyperledger/aries-uniffi-wrappers/releases/download/0.1.1-binary/anoncreds_uniffiFFI.xcframework.zip",
-            checksum: "41f8d517d89f57ca28598d936b8743c8e378ef929a58ac00bdbf77dffe1e19b7"),
+            url: "https://github.com/hyperledger/aries-uniffi-wrappers/releases/download/0.2.0-binary/anoncreds_uniffiFFI.xcframework.zip",
+            checksum: "ae96ac8bbef2b9d116b641f38bc3120e1e9666dae7333fe3a982d2a81ac34f2a"),
         .target(
             name: "Askar",
-            dependencies: ["askar_uniffiFFI"]),
+            path: "swift/Sources/Askar"),
         .testTarget(
             name: "AskarTests",
-            dependencies: ["Askar"]),
+            dependencies: ["Askar"],
+            path: "swift/Tests/AskarTests",
+            resources: [
+                .copy("resources/indy_wallet_sqlite.db")
+            ]),
         .binaryTarget(
             name: "askar_uniffiFFI",
-            url: "https://github.com/hyperledger/aries-uniffi-wrappers/releases/download/0.1.1-binary/askar_uniffiFFI.xcframework.zip",
-            checksum: "761220bc486d14c371c84c30481c7b07b4e8dc53a0e61cdd3e67efa842bc73ab"),
+            url: "https://github.com/hyperledger/aries-uniffi-wrappers/releases/download/0.2.2-binary/askar_uniffiFFI.xcframework.zip",
+            checksum: "ec94f384e406600573cb730fe63d57f4a0dbe74074a98e8fd082ab0f382207af"),
         .target(
             name: "IndyVdr",
-            dependencies: ["indy_vdr_uniffiFFI"]),
+            path: "swift/Sources/IndyVdr"),
         .testTarget(
             name: "IndyVdrTests",
             dependencies: ["IndyVdr"],
+            path: "swift/Tests/IndyVdrTests",
             resources: [
                 .copy("resources/genesis_sov_buildernet.txn")
             ]),
         .binaryTarget(
             name: "indy_vdr_uniffiFFI",
-            url: "https://github.com/hyperledger/aries-uniffi-wrappers/releases/download/0.1.1-binary/indy_vdr_uniffiFFI.xcframework.zip",
-            checksum: "076821ffbeb291e2541dbe8eb6186e2583cbadd68cde144c999cf0362fe9a19c"),
+            url: "https://github.com/hyperledger/aries-uniffi-wrappers/releases/download/0.2.1-binary/indy_vdr_uniffiFFI.xcframework.zip",
+            checksum: "fcaf8df60f41a149d1f496e494499f8645f971a68e9c024b0498271756180a4e")
     ]
 )
+
+let anoncredsTarget = package.targets.first(where: { $0.name == "Anoncreds" })
+let askarTarget = package.targets.first(where: { $0.name == "Askar" })
+let indyVdrTarget = package.targets.first(where: { $0.name == "IndyVdr" })
+
+if ProcessInfo.processInfo.environment["USE_LOCAL_XCFRAMEWORK"] == nil {
+    anoncredsTarget?.dependencies.append("anoncreds_uniffiFFI")
+    askarTarget?.dependencies.append("askar_uniffiFFI")
+    indyVdrTarget?.dependencies.append("indy_vdr_uniffiFFI")
+} else {
+    package.targets.append(.binaryTarget(
+        name: "anoncreds_uniffiFFI_local",
+        path: "anoncreds/out/anoncreds_uniffiFFI.xcframework"))
+    package.targets.append(.binaryTarget(
+        name: "askar_uniffiFFI_local",
+        path: "askar/out/askar_uniffiFFI.xcframework"))
+    package.targets.append(.binaryTarget(
+        name: "indy_vdr_uniffiFFI_local",
+        path: "indy-vdr/out/indy_vdr_uniffiFFI.xcframework"))
+
+    anoncredsTarget?.dependencies.append("anoncreds_uniffiFFI_local")
+    askarTarget?.dependencies.append("askar_uniffiFFI_local")
+    indyVdrTarget?.dependencies.append("indy_vdr_uniffiFFI_local")
+}
