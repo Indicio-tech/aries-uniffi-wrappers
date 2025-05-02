@@ -29,10 +29,11 @@ cargo {
     nativeVariant = Variant.Release
 
     val home = System.getProperty("user.home")
-    val crossFile = File("$home/.cargo/bin/cross")
+
 
     builds{
         linux{
+            val crossFile = File("$home/.cargo/bin/cross")
             variants{
                 buildTaskProvider.configure {
                     cargo = crossFile
@@ -45,14 +46,19 @@ cargo {
             }
         }
         android {
+            if(GobleyHost.Platform.Windows.isCurrent){
+                val crossFile = File("$home/.cargo/bin/cross.exe")
+                variants{
+                    buildTaskProvider.configure {
+                        cargo = crossFile
+                    }
+                }
+            }
             dynamicLibraries.addAll("c++_shared")
         }
         jvm{
             embedRustLibrary = true
-            if (GobleyHost.Platform.Windows.isCurrent) {
-                // Don't build Windows X64, use MinGW instead
-                embedRustLibrary = rustTarget != RustWindowsTarget.X64
-            }else if (GobleyHost.Platform.MacOS.isCurrent){
+            if (GobleyHost.Platform.MacOS.isCurrent){
                 // Don't build for MinGWX64 on MacOS
                 val exclude = listOf(
                     RustPosixTarget.MinGWX64,
@@ -61,7 +67,7 @@ cargo {
                 )
                 embedRustLibrary = !exclude.contains(rustTarget)
             }
-            if(rustTarget == RustPosixTarget.MinGWX64){
+            if(GobleyHost.Platform.Windows.isCurrent){
                 variants {
                     buildTaskProvider.configure {
                         dynamicLibraries.set(listOf("indy_vdr_uniffi.dll"))
@@ -72,15 +78,22 @@ cargo {
     }
 }
 
-
 uniffi{
+    // See https://github.com/gobley/gobley/discussions/105
+    bindgenFromGitBranch(
+        repository = "https://github.com/paxbun/gobley",
+        branch = "tmp/uniffi-0.28.3-coff",
+    )
     generateFromLibrary{
         packageName = "indy_vdr_uniffi"
         cdylibName = "indy_vdr_uniffi"
+        if (GobleyHost.Platform.Windows.isCurrent) {
+            build = RustWindowsTarget.X64
+            variant = Variant.Release
+        }
         this@generateFromLibrary.disableJavaCleaner = true
     }
 }
-
 
 // Stub secrets to let the project sync and build without the publication values set up
 ext["githubUsername"] = null
@@ -115,6 +128,18 @@ publishing{
     }
 
     publications.withType<MavenPublication> {
+        // Add artifacts from windows/linux builds to JVM target
+        if(this@withType.name == "jvm"){
+            listOf("win32-x86-64","linux-x86-64","linux-aarch64").forEach{ target ->
+                val file = file("build/libs/${project.name}-$version-$target.jar")
+                if(file.exists()){
+                    artifact(file){
+                        classifier = target
+                    }
+                }
+            }
+        }
+
         pom {
             name.set("Indy VDR Uniffi Kotlin")
             description.set("Kotlin MPP wrapper around indy vdr uniffi")
@@ -130,7 +155,6 @@ publishing{
 kotlin {
     jvmToolchain(17)
     applyDefaultHierarchyTemplate()
-
 
     androidTarget{
         publishLibraryVariants("release")
@@ -194,7 +218,6 @@ kotlin {
         }
     }
 }
-
 
 android{
     sourceSets["androidTest"].manifest.srcFile("src/androidTest/AndroidManifest.xml")
